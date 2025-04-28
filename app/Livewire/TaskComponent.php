@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Task;
+use App\Models\User;
 use Livewire\Component;
 use Symfony\Component\HttpFoundation\Session\Flash\FlashBag;
 
@@ -13,15 +14,27 @@ class TaskComponent extends Component
     public $description;
     public $modal = false;
     public $task_id; // Añadimos esta propiedad para manejar el ID de la tarea en edición
+    public $users = [];
+    public $user_id;
+    public $shareModal = false;
+    public $permission;
+    public $misSharedTasks;
 
     public function mount()
     {
         $this->tasks = $this->getTasks();
     }
 
+    public function renderAllTasks(){
+        $this->tasks = $this->getTasks();
+    }
+
     public function getTasks()
     {
-        return Task::where('user_id', auth()->user()->id)->get();
+        $user = auth()->user();
+        $misTareas = Task::where('user_id', auth()->user()->id)->get();
+        $misSharedTasks = $user->sharedTasks()->get();
+        return $misSharedTasks->merge($misTareas);
     }
 
     public function render()
@@ -96,4 +109,34 @@ class TaskComponent extends Component
         // Actualiza la lista de tareas
         $this->tasks = $this->getTasks();
     }
+
+    public function openShareModal($taskId)
+    {
+        // Cargar la tarea actual
+        $this->task_id = $taskId;
+        
+        // Cargar todos los usuarios excepto el usuario actual
+        $this->users = User::where('id', '!=', auth()->user()->id)->get();
+        
+        $this->shareModal = true;
+    }
+
+    public function closeShareModal()
+    {
+        $this->shareModal = false;
+        $this->task_id = null;
+        $this->user_id = null;
+    }
+
+    public function shareTask() {
+        $task = Task::find($this->task_id);
+        $user = User::find($this->user_id);
+        $user->sharedTasks()->attach($task->id,['permission' => $this->permission]);
+        $task->sharedWith($this->user_id, $this->permission);
+        $this->closeShareModal();
+        $this->tasks = $this->getTasks();
+
+    }
+
+
 }
